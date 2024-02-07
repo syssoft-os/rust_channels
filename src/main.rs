@@ -1,6 +1,6 @@
 use rand::Rng;
 use std::env;
-use std::sync::mpsc;
+use std::sync::{mpsc,Arc,Mutex};
 use std::thread;
 
 fn create_random_array(n: usize) -> Vec<i32> {
@@ -22,10 +22,10 @@ fn transfer(array: &mut Vec<i32>, transfer: Transfer) {
     if array[transfer.acc1] >= transfer.amount {
         array[transfer.acc1] -= transfer.amount;
         array[transfer.acc2] += transfer.amount;
-        println!("Transfered {} from account {} to account {}", transfer.amount, transfer.acc1, transfer.acc2);
+        // println!("Transfered {} from account {} to account {}", transfer.amount, transfer.acc1, transfer.acc2);
     }
     else {
-        println!("Transfer from account {} to account {} failed", transfer.acc1, transfer.acc2);
+        // println!("Transfer from account {} to account {} failed", transfer.acc1, transfer.acc2);
     }
 }
 
@@ -43,23 +43,32 @@ fn get_argument ( a:&String, comment:&str ) -> usize {
 fn main() {
     println!("Rust Bank - The safest place for your money!");
     let args: Vec<String> = env::args().collect();
-    if args.len() < 4 {
-        println!("Arguments: <number of accounts> <number of clients> <number of transfers>");
+    if args.len() < 5 {
+        println!("Arguments: <number of accounts> <number of server threads> <number of clients> <number of transfers>");
         return;
     }
     let n = get_argument(&args[1], "Please provide a valid number of accounts");
-    let n_clients = get_argument(&args[2], "Please provide a valid number of clients");
-    let n_transfers = get_argument(&args[3], "Please provide a valid number of transfers");
+    let n_servers = get_argument(&args[2], "Please provide a valid number of server threads");
+    let n_clients = get_argument(&args[3], "Please provide a valid number of clients");
+    let n_transfers = get_argument(&args[4], "Please provide a valid number of transfers");
+    println!("Configuration: {} accounts, {} server threads, {} clients with {} transfers each", n, n_servers, n_clients, n_transfers);
 
     let mut accounts = create_random_array(n);
 
     let (tx, rx) = mpsc::channel();
+    let rx = Arc::new(Mutex::new(rx));
 
-    let server = thread::spawn(move || {
-        for received in rx {
-            transfer(&mut accounts, received);
-        }
-    });
+    let mut servers = vec![];
+
+    for _ in 0..n_servers {
+        let rx = rx.clone();
+        let server = thread::spawn(move || {
+            for received in rx.lock().unwrap().iter() {
+                transfer(&mut accounts, received);
+            }
+        });
+        servers.push(server);
+    }
 
     let mut clients = vec![];
 
@@ -71,7 +80,7 @@ fn main() {
                 let acc1 = rng.gen_range(0..n);
                 let acc2 = rng.gen_range(0..n);
                 let amount = rng.gen_range(1..5000);
-                println!("Client transferring {} from account {} to account {}", amount, acc1, acc2);
+                // println!("Client transferring {} from account {} to account {}", amount, acc1, acc2);
                 tx.send(Transfer { acc1, acc2, amount }).unwrap();
             }
         });
@@ -83,6 +92,9 @@ fn main() {
     }
 
     drop(tx);
-    server.join().unwrap();
+
+    for server in servers {
+        server.join().unwrap();
+    }
 
 }
