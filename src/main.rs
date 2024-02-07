@@ -38,6 +38,11 @@ fn get_argument ( a:&String, comment:&str ) -> usize {
     n
 }
 
+fn total_amount(accounts: Arc<Mutex<Vec<i32>>>) -> i32 {
+    let accounts = accounts.lock().unwrap();
+    accounts.iter().sum()
+}
+
 fn main() {
     println!("Rust Bank - The safest place for your money!");
     let args: Vec<String> = env::args().collect();
@@ -54,6 +59,7 @@ fn main() {
     let start = Instant::now();
     let accounts = create_random_array(n);
     let accounts = Arc::new(Mutex::new(accounts)); // Wrap accounts in an Arc<Mutex<_>>
+    println!("Total amount before transfers: {}", total_amount(accounts.clone()));
 
     let (tx, rx) = mpsc::channel();
     let rx = Arc::new(Mutex::new(rx));
@@ -99,4 +105,5 @@ fn main() {
     }
     let stop = Instant::now();
     println!("Elapsed time: {:.2?}", stop.duration_since(start));
+    println!("Total amount after transfers: {}", total_amount(accounts.clone()));
 }
