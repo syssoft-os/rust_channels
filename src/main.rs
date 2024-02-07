@@ -2,6 +2,7 @@ use rand::Rng;
 use std::env;
 use std::sync::{mpsc,Arc,Mutex};
 use std::thread;
+use std::time::Instant;
 
 fn create_random_array(n: usize) -> Vec<i32> {
     let mut rng = rand::thread_rng();
@@ -50,6 +51,7 @@ fn main() {
     let n_transfers = get_argument(&args[4], "Please provide a valid number of transfers");
     println!("Configuration: {} accounts, {} server threads, {} clients with {} transfers each", n, n_servers, n_clients, n_transfers);
 
+    let start = Instant::now();
     let accounts = create_random_array(n);
     let accounts = Arc::new(Mutex::new(accounts)); // Wrap accounts in an Arc<Mutex<_>>
 
@@ -61,7 +63,7 @@ fn main() {
     for _ in 0..n_servers {
         let rx = Arc::clone(&rx);
         let accounts = Arc::clone(&accounts);
-        let server = thread::spawn(move || {
+        let server = thread::spawn(move || { // move = take ownership of the variables, II start of closure == anon function
             for received in rx.lock().unwrap().iter() {
                 transfer(accounts.clone(), received);
             }
@@ -95,5 +97,6 @@ fn main() {
     for server in servers {
         server.join().unwrap();
     }
-
+    let stop = Instant::now();
+    println!("Elapsed time: {:.2?}", stop.duration_since(start));
 }
