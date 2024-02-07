@@ -18,16 +18,13 @@ struct Transfer {
     amount: i32,
 }
 
-fn transfer(array: &mut Vec<i32>, transfer: Transfer) {
-    if array[transfer.acc1] >= transfer.amount {
-        array[transfer.acc1] -= transfer.amount;
-        array[transfer.acc2] += transfer.amount;
-        // println!("Transfered {} from account {} to account {}", transfer.amount, transfer.acc1, transfer.acc2);
+fn transfer(accounts: Arc<Mutex<Vec<i32>>>, transfer: Transfer) {
+    let mut accounts = accounts.lock().unwrap(); // Lock the accounts
+    if accounts[transfer.acc1] >= transfer.amount {
+        accounts[transfer.acc1] -= transfer.amount;
+        accounts[transfer.acc2] += transfer.amount;
     }
-    else {
-        // println!("Transfer from account {} to account {} failed", transfer.acc1, transfer.acc2);
-    }
-}
+} // Unlock the accounts
 
 fn get_argument ( a:&String, comment:&str ) -> usize {
     let n: usize = match a.parse() {
@@ -53,7 +50,8 @@ fn main() {
     let n_transfers = get_argument(&args[4], "Please provide a valid number of transfers");
     println!("Configuration: {} accounts, {} server threads, {} clients with {} transfers each", n, n_servers, n_clients, n_transfers);
 
-    let mut accounts = create_random_array(n);
+    let accounts = create_random_array(n);
+    let accounts = Arc::new(Mutex::new(accounts)); // Wrap accounts in an Arc<Mutex<_>>
 
     let (tx, rx) = mpsc::channel();
     let rx = Arc::new(Mutex::new(rx));
@@ -61,10 +59,11 @@ fn main() {
     let mut servers = vec![];
 
     for _ in 0..n_servers {
-        let rx = rx.clone();
+        let rx = Arc::clone(&rx);
+        let accounts = Arc::clone(&accounts);
         let server = thread::spawn(move || {
             for received in rx.lock().unwrap().iter() {
-                transfer(&mut accounts, received);
+                transfer(accounts.clone(), received);
             }
         });
         servers.push(server);
